@@ -1,0 +1,29 @@
+# Hand-picked boards, always fetched. Format: <job board>:<company token>
+# Job boards: greenhouse, lever, ashby. A bare token means greenhouse.
+# `python -m jd_analyzer.discover` adds ~1,000 more from the Simplify internship list.
+#
+# Had PM-intern titles on 2026-10-21:
+greenhouse:databricks
+greenhouse:datadog
+greenhouse:coinbase
+greenhouse:duolingo
+greenhouse:roblox
+# Live boards, no PM-intern titles that day (worth re-checking as the season opens):
+greenhouse:stripe
+greenhouse:figma
+greenhouse:airbnb
+greenhouse:pinterest
+greenhouse:robinhood
+greenhouse:lyft
+greenhouse:instacart
+greenhouse:reddit
+greenhouse:asana
+greenhouse:affirm
+greenhouse:brex
+greenhouse:gusto
+lever:spotify
+lever:palantir
+ashby:notion
+ashby:openai
+ashby:ramp
+ashby:perplexity
