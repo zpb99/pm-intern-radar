@@ -5,8 +5,7 @@ What do Product Manager intern job descriptions actually ask for?
 This project pulls PM intern postings from public job-board APIs, extracts the skills and
 requirements each one lists, and counts and clusters them.
 
-Status: **fetching works (Greenhouse, Lever, Ashby; ~1,000 companies discovered automatically)**.
-Extraction and analysis are next.
+Status: **fetching and skill extraction work**; analysis and write-up are next.
 
 ## Setup
 
@@ -60,6 +59,27 @@ on Greenhouse/Lever/Ashby; most were on Workday or company career sites, which t
 does not read. Results describe PM internships at companies using these three job boards
 (skewing toward tech startups and growth-stage companies), not all PM internships.
 
+## Extract skills
+
+```bash
+python -m jd_analyzer.extract
+```
+
+1. **Merge cross-posts into roles** (`dedupe.py`). One internship posted per country, or on
+   two of a company's boards, is one role. Postings whose descriptions share at least 40% of
+   their 5-word phrases are merged. On 2026-10-21, same-company copies scored 0.45–1.00 and no
+   cross-company pair scored above 0.2.
+2. **Label lines** required / preferred / other (`sections.py`) from headings like "Basic
+   Qualifications", "Who You Are", "Bonus Points", and inline "...is a plus".
+3. **Match skills** (`skills.py`): a hand-written list of regexes, built from the requirement
+   lines in real postings. Each skill counts at most once per role.
+
+Outputs: `data/skill_counts.csv` (per skill: roles mentioning it anywhere, requiring it,
+preferring it), `data/roles.csv`, and `data/skill_evidence.csv`, which lists every match with
+the line it came from. **Read the evidence before quoting a number.** "Mentioned anywhere"
+includes company intros and job duties ("drive features through launch"), so the *required*
+column is the one that means "asked of the candidate."
+
 ## Data sources (checked 2026-10-21)
 
 | Job board | Endpoint | Auth | Results |
@@ -87,7 +107,11 @@ jd_analyzer/
   text.py                HTML -> plain text (bullets kept as "- " lines)
   boards.py              Board(source, token) + board-list files
   discover.py            find boards from the Simplify internship list
-  fetch.py               command-line entry point
+  fetch.py               command-line entry point: fetch
+  dedupe.py              merge cross-posted copies into roles
+  sections.py            label lines required / preferred / other
+  skills.py              the skill list (edit this to add skills)
+  extract.py             command-line entry point: extract
   sources/
     base.py              token checks, HTTP with retry, BoardNotFound
     greenhouse.py        fetch_board() (network) + parse_board() (pure)
