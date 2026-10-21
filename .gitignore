@@ -1,0 +1,12 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Fetched data: large (raw boards are ~45 MB per run) and the job text belongs
+# to the companies that posted it. Regenerate with `python -m jd_analyzer.fetch`.
+data/
+
+# macOS
+.DS_Store
