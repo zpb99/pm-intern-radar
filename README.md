@@ -130,10 +130,13 @@ posting's link.
 **Claude Code:**
 
 ```bash
-claude mcp add pm-intern-radar -- /path/to/jd-analyzer/.venv/bin/python -m jd_analyzer.mcp_server
+claude mcp add --scope user pm-intern-radar --env PYTHONPATH=/path/to/jd-analyzer -- /path/to/jd-analyzer/.venv/bin/python -m jd_analyzer.mcp_server
 ```
 
-Run it from the repo folder, or add `--env JD_ANALYZER_DATA_DIR=/path/to/jd-analyzer/data`.
+`PYTHONPATH` is required: Claude starts the server from whatever folder your session is in,
+and without it Python can't find `jd_analyzer` (`ModuleNotFoundError`). Data is read from
+the repo's `data/` folder by default; set `JD_ANALYZER_DATA_DIR` to use another one.
+Check it with `claude mcp get pm-intern-radar`.
 
 **Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 
@@ -143,7 +146,7 @@ Run it from the repo folder, or add `--env JD_ANALYZER_DATA_DIR=/path/to/jd-anal
     "pm-intern-radar": {
       "command": "/path/to/jd-analyzer/.venv/bin/python",
       "args": ["-m", "jd_analyzer.mcp_server"],
-      "env": {"JD_ANALYZER_DATA_DIR": "/path/to/jd-analyzer/data"}
+      "env": {"PYTHONPATH": "/path/to/jd-analyzer"}
     }
   }
 }
