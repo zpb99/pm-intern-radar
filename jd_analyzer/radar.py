@@ -14,7 +14,6 @@ import json
 import os
 import re
 import sys
-from urllib.parse import urlparse
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -27,6 +26,7 @@ from jd_analyzer.catalog import degree_hint
 from jd_analyzer.dedupe import Role, group_roles
 from jd_analyzer.extract import analyze_role, read_postings
 from jd_analyzer.models import Posting
+from jd_analyzer.untrusted import clean_text, safe_url
 from jd_analyzer.sections import PREFERRED, REQUIRED, label_lines
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -111,26 +111,20 @@ def update_seen(seen: dict[str, dict], postings: list[Posting], result: RadarRes
 # (backtick), raw HTML (`<`, `>`, `&`), or escapes (backslash). Everything else in job
 # text can at most change formatting (bold, italics), which is harmless.
 _MD_SPECIAL = re.compile(r"([\\`\[\]()!<>&])")
-_CONTROL = re.compile(r"[\x00-\x1f\x7f]+")
-# A URL is linked only if it is made entirely of these (RFC 3986) characters, so the
-# string we check is exactly the string we print.
-_SAFE_URL = re.compile(r"[A-Za-z0-9\-._~:/?#@!$&'*+,;=%]+")
 
 
 def _text(value: str) -> str:
-    """Job-board text is untrusted: flatten control characters and backslash-escape the
+    """Job-board text is untrusted: remove hidden characters, then backslash-escape the
     Markdown/HTML characters that could form a link, image, code span or tag."""
-    return _MD_SPECIAL.sub(r"\\\1", _CONTROL.sub(" ", value))
+    return _MD_SPECIAL.sub(r"\\\1", clean_text(value))
 
 
 def _link(url: str) -> str:
     """Only plain http(s) URLs become links; anything else is shown as escaped text."""
     if not url:
         return "not listed"
-    if _SAFE_URL.fullmatch(url):
-        parsed = urlparse(url)
-        if parsed.scheme in ("http", "https") and parsed.hostname:
-            return f"<{url}>"
+    if safe_url(url):
+        return f"<{url}>"
     return f"{_text(url)} (not linked: not a plain http(s) URL)"
 
 

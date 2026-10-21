@@ -119,6 +119,14 @@ radar's data. It never fetches anything itself: it reads `data/postings.csv` and
 Every response includes `data_as_of` and a note that posting text is third-party data, not
 instructions.
 
+**Untrusted text.** Posting text is written by whoever controls a job board. Before it
+reaches Claude or the report, invisible and text-reordering characters (zero-width spaces,
+right-to-left overrides, U+2028 line separators) are removed (`untrusted.py`), and links
+that aren't plain http(s) URLs are withheld. That doesn't make prompt injection impossible:
+a posting can still contain plain-English instructions. The tools only read data, so the
+worst case is a misleading answer, not an action. Check anything important at the
+posting's link.
+
 **Claude Code:**
 
 ```bash

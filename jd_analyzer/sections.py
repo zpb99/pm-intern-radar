@@ -33,7 +33,9 @@ def label_lines(description: str) -> list[tuple[str, str]]:
     """Return (label, line) for every non-empty line, in order."""
     out = []
     section, saw_bullet = OTHER, False
-    for line in description.splitlines():
+    # Split on \n only: str.splitlines() also breaks on invisible separators (U+2028...),
+    # which a posting could use to push text out of its requirements section.
+    for line in description.split("\n"):
         line = line.strip()
         if not line:
             continue

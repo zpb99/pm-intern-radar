@@ -4,6 +4,8 @@ import html
 import re
 from html.parser import HTMLParser
 
+_OTHER_BREAKS = re.compile(r"[\x0b\x0c\x1c-\x1e\x85\u2028\u2029]")
+
 # Tags that end a line of text when they close.
 _BLOCK_TAGS = {"p", "div", "li", "ul", "ol", "br", "h1", "h2", "h3", "h4", "h5", "h6", "tr"}
 
@@ -41,6 +43,9 @@ def html_to_text(raw: str) -> str:
     parser = _TextExtractor()
     parser.feed(unescaped)
     text = "".join(parser.parts).replace("\xa0", " ")
-    lines = (re.sub(r"[ \t]+", " ", line).strip() for line in text.splitlines())
+    # Only \n separates lines. Other characters str.splitlines() would break on (U+2028,
+    # vertical tab, form feed...) are invisible in a posting, so they become spaces.
+    text = _OTHER_BREAKS.sub(" ", text.replace("\r\n", "\n").replace("\r", "\n"))
+    lines = (re.sub(r"[ \t]+", " ", line).strip() for line in text.split("\n"))
     text = "\n".join(line for line in lines if line and line != "-")
     return text

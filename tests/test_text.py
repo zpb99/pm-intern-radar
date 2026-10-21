@@ -18,3 +18,11 @@ def test_empty_and_none_like_input():
 
 def test_inline_tags_do_not_split_lines():
     assert html_to_text("<p>Strong <strong>SQL</strong> skills</p>") == "Strong SQL skills"
+
+
+def test_hidden_separators_become_spaces_not_line_breaks():
+    assert html_to_text("<p>one two three\x0bfour</p>") == "one two three four"
+
+
+def test_windows_line_endings():
+    assert html_to_text("<p>a</p>\r\n<p>b</p>") == "a\nb"
