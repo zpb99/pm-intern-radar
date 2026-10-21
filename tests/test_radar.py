@@ -1,8 +1,10 @@
 import json
+import re
 
 import pytest
 
 from jd_analyzer import radar
+from jd_analyzer.catalog import degree_hint
 from jd_analyzer.models import Posting
 from jd_analyzer.radar import (
     CorruptSeenFile,
@@ -141,7 +143,7 @@ def test_report_lists_requirements_and_puts_mba_roles_first():
     ],
 )
 def test_eligibility_does_not_treat_masters_as_mba(required, expected):
-    rank, text = radar._eligibility(required, set())
+    rank, text = degree_hint(required, set())
     assert rank == expected[0] and expected[1] in text
 
 
@@ -217,25 +219,55 @@ def test_same_day_reruns_keep_earlier_reports(data_dir):
 
 def test_report_neutralizes_untrusted_html_and_links():
     evil = Posting("greenhouse", "evil", "1", "PM Intern <img src=x onerror=alert(1)>", "<b>NYC</b>",
-                   "javascript:alert(1)", "Requirements\n- <a href='http://phish'>Apply</a> SQL " + " ".join(f"e{i}" for i in range(80)),
-                   "", "")
+                   "javascript:alert(1)",
+                   "Requirements\n- [Apply here](javascript:alert(1)) and ![x](http://track/p.png) `code` SQL "
+                   + " ".join(f"e{i}" for i in range(80)), "", "")
     report = render_report(compare([evil], {}, {("greenhouse", "evil")}), "d", 1, 0)
-    assert "<img" not in report and "<a " not in report and "<b>" not in report
-    assert "&lt;img src=x onerror=alert(1)&gt;" in report
-    assert "`javascript:alert(1)` (not linked" in report
+    assert re.search(r"(?<!\\)<(img|b)", report) is None  # every < from the posting is backslash-escaped
+    assert r"\<img src=x onerror=alert\(1\)\>" in report
+    assert "](javascript" not in report and "![x](" not in report  # no Markdown link or image survives
+    assert r"\[Apply here\]\(javascript:alert\(1\)\)" in report
+    assert "javascript:alert\\(1\\) (not linked" in report
 
 
 @pytest.mark.parametrize(
-    "url, expected",
+    "url, linked",
     [
-        ("https://job-boards.greenhouse.io/acme/jobs/1", "<https://job-boards.greenhouse.io/acme/jobs/1>"),
-        ("http://x.com/a", "<http://x.com/a>"),
-        ("javascript:alert(1)", "not an http(s) URL"),
-        ("data:text/html,hi", "not an http(s) URL"),
-        ("https://x.com/a b", "unusual characters"),
-        ("https://x.com/<script>", "unusual characters"),
-        ("", "not listed"),
+        ("https://job-boards.greenhouse.io/acme/jobs/1?gh_jid=1", True),
+        ("http://x.com/a", True),
+        ("javascript:alert(1)", False),
+        ("data:text/html,hi", False),
+        ("https://x.com/a b", False),
+        ("https://x.com/<script>", False),
+        ("https://x.com/a`b", False),  # backtick can't end a code span if it isn't in one
+        ("https://x.com/\x01a", False),  # control char urlparse would silently drop
+        ("https://x.com/a\nb", False),
+        ("https://x.com/(paren)", False),  # parens could close a Markdown link
+        ("https://", False),  # no host
     ],
 )
-def test_link_only_allows_http(url, expected):
-    assert expected in radar._link(url)
+def test_link_only_allows_plain_http(url, linked):
+    out = radar._link(url)
+    assert out.startswith("<http") == linked
+    if not linked:
+        assert "\n" not in out and "\x01" not in out and "`" not in out.replace("\\`", "")
+
+
+def test_link_empty():
+    assert radar._link("") == "not listed"
+
+
+@pytest.mark.parametrize(
+    "raw, escaped",
+    [
+        ("[a](b)", r"\[a\]\(b\)"),
+        ("![img](x)", r"\!\[img\]\(x\)"),
+        ("`tick`", r"\`tick\`"),
+        ("a\\b", r"a\\b"),
+        ("<b>&", r"\<b\>\&"),
+        ("line\nbreak\ttab", "line break tab"),
+        ("Strong SQL, **bold** ok", "Strong SQL, **bold** ok"),  # harmless formatting kept
+    ],
+)
+def test_text_escapes_markdown_that_could_link_or_embed(raw, escaped):
+    assert radar._text(raw) == escaped

@@ -12,6 +12,7 @@ import argparse
 import csv
 import json
 import os
+import re
 import sys
 from urllib.parse import urlparse
 from dataclasses import dataclass, field
@@ -22,6 +23,7 @@ import requests
 
 from jd_analyzer import discover, fetch
 from jd_analyzer.boards import read_boards
+from jd_analyzer.catalog import degree_hint
 from jd_analyzer.dedupe import Role, group_roles
 from jd_analyzer.extract import analyze_role, read_postings
 from jd_analyzer.models import Posting
@@ -33,7 +35,6 @@ RADAR_DIR = DATA_DIR / "radar"
 SEEN_FILE = RADAR_DIR / "seen.json"
 STORE_VERSION = 1
 
-_UNDERGRAD = "Bachelor's degree"
 
 
 def posting_key(p: Posting) -> str:
@@ -106,33 +107,31 @@ def update_seen(seen: dict[str, dict], postings: list[Posting], result: RadarRes
     return updated
 
 
-def _eligibility(skills_required: set[str], skills_preferred: set[str]) -> tuple[int, str]:
-    """Heuristic degree hint from the requirement lines, plus a sort rank (0 first).
-
-    "Master's" alone is not "MBA": Appian wants a Master's in Computer Science.
-    Always check the posting.
-    """
-    asked = skills_required | skills_preferred
-    if "MBA" in asked:
-        return 0, "MBA named in the requirements"
-    if "Master's / graduate degree" in asked:
-        return 1, "graduate students mentioned, MBA not named: check the field of study"
-    if _UNDERGRAD in asked:
-        return 2, "bachelor's only: check whether MBA students are eligible"
-    return 1, "no degree requirement detected"
+# Characters that can start Markdown links/images (`[`, `]`, `(`, `)`, `!`), code spans
+# (backtick), raw HTML (`<`, `>`, `&`), or escapes (backslash). Everything else in job
+# text can at most change formatting (bold, italics), which is harmless.
+_MD_SPECIAL = re.compile(r"([\\`\[\]()!<>&])")
+_CONTROL = re.compile(r"[\x00-\x1f\x7f]+")
+# A URL is linked only if it is made entirely of these (RFC 3986) characters, so the
+# string we check is exactly the string we print.
+_SAFE_URL = re.compile(r"[A-Za-z0-9\-._~:/?#@!$&'*+,;=%]+")
 
 
 def _text(value: str) -> str:
-    """Job-board text is untrusted: neutralize HTML so a viewer can't render tags or links."""
-    return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    """Job-board text is untrusted: flatten control characters and backslash-escape the
+    Markdown/HTML characters that could form a link, image, code span or tag."""
+    return _MD_SPECIAL.sub(r"\\\1", _CONTROL.sub(" ", value))
 
 
 def _link(url: str) -> str:
-    """Only http(s) URLs become links; anything else (javascript:, data:) is shown inert."""
-    parsed = urlparse(url)
-    if parsed.scheme in ("http", "https") and parsed.hostname:
-        return f"<{url}>" if not any(c in url for c in "<> ") else f"`{url}` (not linked: unusual characters)"
-    return f"`{_text(url)}` (not linked: not an http(s) URL)" if url else "not listed"
+    """Only plain http(s) URLs become links; anything else is shown as escaped text."""
+    if not url:
+        return "not listed"
+    if _SAFE_URL.fullmatch(url):
+        parsed = urlparse(url)
+        if parsed.scheme in ("http", "https") and parsed.hostname:
+            return f"<{url}>"
+    return f"{_text(url)} (not linked: not a plain http(s) URL)"
 
 
 def render_role(role: Role) -> str:
@@ -146,7 +145,7 @@ def render_role(role: Role) -> str:
         f"### {_text(first.title)}: {', '.join(role.companies)}",
         f"- **Where:** {_text(' | '.join(sorted({p.location for p in role.postings if p.location}))) or 'not listed'}",
         f"- **Link:** {_link(first.url)}",
-        f"- **Degree:** {_eligibility(analyzed.required, analyzed.preferred)[1]}",
+        f"- **Degree:** {degree_hint(analyzed.required, analyzed.preferred)[1]}",
     ]
     if analyzed.required:
         out.append(f"- **Required skills:** {', '.join(sorted(analyzed.required))}")
@@ -162,7 +161,7 @@ def render_role(role: Role) -> str:
 def render_report(result: RadarResult, today: str, boards_ok: int, boards_failed: int) -> str:
     def mba_first(role: Role):
         a = analyze_role(role)
-        return (_eligibility(a.required, a.preferred)[0], role.companies[0])
+        return (degree_hint(a.required, a.preferred)[0], role.companies[0])
 
     head = f"# PM intern radar: {today}\n\n"
     if result.first_run:

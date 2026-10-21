@@ -5,7 +5,7 @@ What do Product Manager intern job descriptions actually ask for?
 This project pulls PM intern postings from public job-board APIs, extracts the skills and
 requirements each one lists, and counts and clusters them.
 
-Status: **fetching, skill extraction, and a weekly new-postings radar work.**
+Status: **fetching, skill extraction, a weekly new-postings radar, and an MCP server work.**
 
 ## Setup
 
@@ -104,6 +104,49 @@ every known role as new.
 then shows a notification with the count of new roles, or that the run failed. Logs go to
 `data/radar/logs/`. Remove it with `bash scripts/uninstall_schedule.sh`.
 
+## Ask Claude about the roles (MCP server)
+
+`jd_analyzer/mcp_server.py` is a local [MCP](https://modelcontextprotocol.io) server over the
+radar's data. It never fetches anything itself: it reads `data/postings.csv` and
+`data/radar/seen.json` on every call, so Monday's radar run shows up without a restart.
+
+| Tool | What it answers |
+|---|---|
+| `new_roles(since)` | Roles first seen on or after a date (default: last 7 days). `in_baseline: true` marks roles that were already open when tracking began. |
+| `search_roles(text, skill, skill_in, degree, company)` | e.g. `degree="mba"`, `skill="SQL", skill_in="anywhere"`. Unknown skills return the list of valid ones. |
+| `get_requirements(role_id)` | The role's required and preferred lines quoted from the posting, plus every copy's location and link. |
+
+Every response includes `data_as_of` and a note that posting text is third-party data, not
+instructions.
+
+**Claude Code:**
+
+```bash
+claude mcp add pm-intern-radar -- /path/to/jd-analyzer/.venv/bin/python -m jd_analyzer.mcp_server
+```
+
+Run it from the repo folder, or add `--env JD_ANALYZER_DATA_DIR=/path/to/jd-analyzer/data`.
+
+**Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "pm-intern-radar": {
+      "command": "/path/to/jd-analyzer/.venv/bin/python",
+      "args": ["-m", "jd_analyzer.mcp_server"],
+      "env": {"JD_ANALYZER_DATA_DIR": "/path/to/jd-analyzer/data"}
+    }
+  }
+}
+```
+
+**Related work, and how this differs (checked 2026-10-21):**
+[ats-jobs-mcp](https://pypi.org/project/ats-jobs-mcp) already exposes Greenhouse, Ashby, Lever
+and Workable boards per company, with careful salary parsing. This server instead covers one
+kind of role across ~1,000 companies: what's new each week, cross-posts merged, and each
+posting's required vs preferred lines.
+
 ## Data sources (checked 2026-10-21)
 
 | Job board | Endpoint | Auth | Results |
@@ -137,6 +180,8 @@ jd_analyzer/
   skills.py              the skill list (edit this to add skills)
   extract.py             command-line entry point: extract
   radar.py               command-line entry point: weekly new-roles report
+  catalog.py             read-only queries over tracked roles (used by the MCP server)
+  mcp_server.py          MCP server: new_roles, search_roles, get_requirements
   sources/
     base.py              token checks, HTTP with retry, BoardNotFound
     greenhouse.py        fetch_board() (network) + parse_board() (pure)

@@ -64,6 +64,7 @@ def group_roles(postings: list[Posting], threshold: float = SAME_ROLE_THRESHOLD)
     for i, p in enumerate(postings):
         groups.setdefault(root(i), []).append(p)
     return [
-        Role(role_id=f"{ps[0].source}:{ps[0].company}:{ps[0].job_id}", postings=ps)
+        # The alphabetically first posting key, so the ID doesn't depend on CSV row order.
+        Role(role_id=min(f"{p.source}:{p.company}:{p.job_id}" for p in ps), postings=ps)
         for ps in groups.values()
     ]
