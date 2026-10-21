@@ -104,10 +104,11 @@ def main() -> int:
           "has_sections": r.has_sections} for r in analyzed],
         ["role_id", "title", "companies", "postings", "locations", "has_sections"],
         DATA_DIR / "roles.csv",
+        for_spreadsheets=True,
     )
     write_csv(counts, list(counts[0]), DATA_DIR / "skill_counts.csv")
     write_csv([e for r in analyzed for e in r.evidence], ["role_id", "skill", "label", "matched", "line"],
-              DATA_DIR / "skill_evidence.csv")
+              DATA_DIR / "skill_evidence.csv", for_spreadsheets=True)
 
     print(f"{len(postings)} postings -> {len(roles)} roles after merging cross-posts")
     print(f"{with_sections} of {len(roles)} roles have recognizable required/preferred sections\n")

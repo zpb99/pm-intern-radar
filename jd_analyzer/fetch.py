@@ -31,12 +31,25 @@ PAUSE_SECONDS = 1.0  # between requests to the same job board, to be polite
 REPORT_COLUMNS = ["source", "token", "status", "jobs", "pm_intern", "error"]
 
 
-def write_csv(rows: list[dict], columns: list[str], path: Path) -> None:
+_FORMULA_START = ("=", "+", "-", "@", "\t", "\r")
+
+
+def spreadsheet_safe(value):
+    """Prefix text that Excel/Sheets would run as a formula ("- SQL", "=HYPERLINK(...)")."""
+    if isinstance(value, str) and value.startswith(_FORMULA_START):
+        return "'" + value
+    return value
+
+
+def write_csv(rows: list[dict], columns: list[str], path: Path, for_spreadsheets: bool = False) -> None:
+    """Write rows to CSV. Use for_spreadsheets=True for files people open in Excel or
+    Sheets; leave it off for files the pipeline reads back (it alters the text)."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=columns)
         writer.writeheader()
-        writer.writerows(rows)
+        for row in rows:
+            writer.writerow({k: spreadsheet_safe(v) for k, v in row.items()} if for_spreadsheets else row)
 
 
 def fetch_one(board: Board, session, raw_dir: Path, fetched_at: str) -> tuple[list[Posting], dict]:

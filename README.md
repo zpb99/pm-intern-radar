@@ -5,7 +5,7 @@ What do Product Manager intern job descriptions actually ask for?
 This project pulls PM intern postings from public job-board APIs, extracts the skills and
 requirements each one lists, and counts and clusters them.
 
-Status: **fetching and skill extraction work**; analysis and write-up are next.
+Status: **fetching, skill extraction, and a weekly new-postings radar work.**
 
 ## Setup
 
@@ -80,6 +80,30 @@ the line it came from. **Read the evidence before quoting a number.** "Mentioned
 includes company intros and job duties ("drive features through launch"), so the *required*
 column is the one that means "asked of the candidate."
 
+## Weekly radar: only what's new
+
+```bash
+python -m jd_analyzer.radar               # discover + fetch + compare (~15 min)
+python -m jd_analyzer.radar --skip-fetch  # compare the last fetch only
+```
+
+The radar remembers every posting it has seen (`data/radar/seen.json`) and writes
+`data/radar/latest.md` (plus a dated copy) listing only:
+
+- **New roles**: no copy of the role was seen before. Each comes with its link, its required and
+  preferred lines, and a degree hint. Roles that name the MBA come first; bachelor's-only last.
+- **Known roles, new locations**: a role you've seen got another location or board.
+- **No longer listed**: only counted when that company's board was fetched successfully,
+  so a board that errored this week doesn't look like it closed its roles.
+
+A corrupt `seen.json` stops the run instead of starting over, since starting over would report
+every known role as new.
+
+**Schedule (macOS):** `bash scripts/install_schedule.sh` installs a launchd job that runs
+`scripts/run_radar.sh` every Monday at 08:00 (or at the next wake if the Mac was asleep),
+then shows a notification with the count of new roles, or that the run failed. Logs go to
+`data/radar/logs/`. Remove it with `bash scripts/uninstall_schedule.sh`.
+
 ## Data sources (checked 2026-10-21)
 
 | Job board | Endpoint | Auth | Results |
@@ -112,11 +136,13 @@ jd_analyzer/
   sections.py            label lines required / preferred / other
   skills.py              the skill list (edit this to add skills)
   extract.py             command-line entry point: extract
+  radar.py               command-line entry point: weekly new-roles report
   sources/
     base.py              token checks, HTTP with retry, BoardNotFound
     greenhouse.py        fetch_board() (network) + parse_board() (pure)
     lever.py
     ashby.py
 boards.txt               hand-picked boards, always included
+scripts/                 run_radar.sh, install_schedule.sh, uninstall_schedule.sh
 tests/
 ```
