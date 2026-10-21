@@ -13,6 +13,7 @@ import csv
 import json
 import os
 import sys
+from urllib.parse import urlparse
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -121,6 +122,19 @@ def _eligibility(skills_required: set[str], skills_preferred: set[str]) -> tuple
     return 1, "no degree requirement detected"
 
 
+def _text(value: str) -> str:
+    """Job-board text is untrusted: neutralize HTML so a viewer can't render tags or links."""
+    return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _link(url: str) -> str:
+    """Only http(s) URLs become links; anything else (javascript:, data:) is shown inert."""
+    parsed = urlparse(url)
+    if parsed.scheme in ("http", "https") and parsed.hostname:
+        return f"<{url}>" if not any(c in url for c in "<> ") else f"`{url}` (not linked: unusual characters)"
+    return f"`{_text(url)}` (not linked: not an http(s) URL)" if url else "not listed"
+
+
 def render_role(role: Role) -> str:
     analyzed = analyze_role(role)
     lines_by_label = {REQUIRED: [], PREFERRED: []}
@@ -129,9 +143,9 @@ def render_role(role: Role) -> str:
             lines_by_label[label].append(line.removeprefix("- "))
     first = role.postings[0]
     out = [
-        f"### {first.title}: {', '.join(role.companies)}",
-        f"- **Where:** {' | '.join(sorted({p.location for p in role.postings if p.location})) or 'not listed'}",
-        f"- **Link:** {first.url}",
+        f"### {_text(first.title)}: {', '.join(role.companies)}",
+        f"- **Where:** {_text(' | '.join(sorted({p.location for p in role.postings if p.location}))) or 'not listed'}",
+        f"- **Link:** {_link(first.url)}",
         f"- **Degree:** {_eligibility(analyzed.required, analyzed.preferred)[1]}",
     ]
     if analyzed.required:
@@ -141,7 +155,7 @@ def render_role(role: Role) -> str:
     for label, heading in ((REQUIRED, "Required"), (PREFERRED, "Preferred")):
         if lines_by_label[label]:
             out.append(f"\n**{heading}:**")
-            out.extend(f"- {line}" for line in lines_by_label[label])
+            out.extend(f"- {_text(line)}" for line in lines_by_label[label])
     return "\n".join(out)
 
 
@@ -167,13 +181,13 @@ def render_report(result: RadarResult, today: str, boards_ok: int, boards_failed
     if result.new_locations:
         parts.append("## Known roles, new locations\n")
         parts.extend(
-            f"- {r.title} ({', '.join(r.companies)}): {', '.join(p.location or '?' for p in fresh)}"
+            f"- {_text(r.title)} ({', '.join(r.companies)}): {_text(', '.join(p.location or '?' for p in fresh))}"
             for r, fresh in result.new_locations
         )
         parts.append("")
     if result.gone:
         parts.append("## No longer listed\n")
-        parts.extend(f"- {g['title']}: {g['key'].split(':')[1]}" for g in result.gone)
+        parts.extend(f"- {_text(g['title'])}: {g['key'].split(':')[1]}" for g in result.gone)
     return "\n".join(parts).rstrip() + "\n"
 
 

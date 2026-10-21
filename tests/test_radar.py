@@ -213,3 +213,29 @@ def test_same_day_reruns_keep_earlier_reports(data_dir):
     second = (data_dir / "radar" / "report-2026-10-21-2.md").read_text()
     assert "**1 new roles**" in first and "**0 new roles**" in second
     assert (data_dir / "radar" / "latest.md").read_text() == second
+
+
+def test_report_neutralizes_untrusted_html_and_links():
+    evil = Posting("greenhouse", "evil", "1", "PM Intern <img src=x onerror=alert(1)>", "<b>NYC</b>",
+                   "javascript:alert(1)", "Requirements\n- <a href='http://phish'>Apply</a> SQL " + " ".join(f"e{i}" for i in range(80)),
+                   "", "")
+    report = render_report(compare([evil], {}, {("greenhouse", "evil")}), "d", 1, 0)
+    assert "<img" not in report and "<a " not in report and "<b>" not in report
+    assert "&lt;img src=x onerror=alert(1)&gt;" in report
+    assert "`javascript:alert(1)` (not linked" in report
+
+
+@pytest.mark.parametrize(
+    "url, expected",
+    [
+        ("https://job-boards.greenhouse.io/acme/jobs/1", "<https://job-boards.greenhouse.io/acme/jobs/1>"),
+        ("http://x.com/a", "<http://x.com/a>"),
+        ("javascript:alert(1)", "not an http(s) URL"),
+        ("data:text/html,hi", "not an http(s) URL"),
+        ("https://x.com/a b", "unusual characters"),
+        ("https://x.com/<script>", "unusual characters"),
+        ("", "not listed"),
+    ],
+)
+def test_link_only_allows_http(url, expected):
+    assert expected in radar._link(url)
