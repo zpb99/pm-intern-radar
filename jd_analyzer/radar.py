@@ -25,6 +25,7 @@ from jd_analyzer.boards import read_boards
 from jd_analyzer.catalog import degree_hint
 from jd_analyzer.dedupe import Role, group_roles
 from jd_analyzer.extract import analyze_role, read_postings
+from jd_analyzer.filters import RoleConfigError, load_role_filter
 from jd_analyzer.models import Posting
 from jd_analyzer.untrusted import clean_text, safe_url
 from jd_analyzer.sections import PREFERRED, REQUIRED, label_lines
@@ -208,7 +209,7 @@ def run(skip_fetch: bool = False, today: str | None = None) -> int:
     today = today or date.today().isoformat()
     seen = load_seen(SEEN_FILE)  # fail before the 15-minute fetch, not after
     if not skip_fetch:
-        fetch.run(_refresh_boards(), DATA_DIR)
+        fetch.run(_refresh_boards(), DATA_DIR, load_role_filter())
 
     postings = read_postings(DATA_DIR / "postings.csv")
     with (DATA_DIR / "fetch_report.csv").open(newline="") as f:
@@ -239,7 +240,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         return run(skip_fetch=args.skip_fetch)
-    except CorruptSeenFile as e:
+    except (CorruptSeenFile, RoleConfigError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 2
 

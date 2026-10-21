@@ -1,0 +1,20 @@
+# Which job titles to track. A title is kept when it matches `title` AND `level`,
+# and does not match `exclude`. Patterns are Python regular expressions, matched
+# case-insensitively anywhere in the title. Use single quotes so backslashes
+# like \b (word boundary) are kept as written.
+#
+# The skill list (jd_analyzer/skills.py) was built and audited on PM postings. It
+# still roughly fits adjacent roles (APM, product marketing, program management),
+# but check data/skill_evidence.csv before trusting counts for other roles.
+
+[filter]
+name = "PM internships"
+title = '\bproduct\s+manage(r|ment)\b'
+level = '\b(intern|interns|internship|mba)\b'
+exclude = ''
+
+# Examples (replace the values above):
+#   APM / early-career PM:  title = '\b(associate\s+)?product\s+manage(r|ment)\b'
+#                           level = '\b(new\s+grad|early\s+career|associate|apm|university)\b'
+#   Product marketing:      title = '\bproduct\s+marketing\b'
+#   Exclude a word:         exclude = '\bsenior\b'

@@ -176,7 +176,7 @@ def write_inputs(data_dir, postings, reports):
 
 
 def ok(company):
-    return {"source": "greenhouse", "token": company, "status": "ok", "jobs": 1, "pm_intern": 1, "error": ""}
+    return {"source": "greenhouse", "token": company, "status": "ok", "jobs": 1, "matches": 1, "error": ""}
 
 
 def test_run_twice_second_run_shows_only_the_new_role(data_dir, monkeypatch):

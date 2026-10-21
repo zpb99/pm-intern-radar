@@ -1,11 +1,12 @@
-# jd-analyzer
+# pm-intern-radar
 
-What do Product Manager intern job descriptions actually ask for?
+Tracks Product Manager internship postings across ~1,000 companies' public job boards
+(Greenhouse, Lever, Ashby), reports what's new each week, and pulls out what each posting
+actually *requires* vs merely *prefers*. Includes a local MCP server so Claude can answer
+questions like "which new PM internships this week name the MBA, and what do they require?"
 
-This project pulls PM intern postings from public job-board APIs, extracts the skills and
-requirements each one lists, and counts and clusters them.
-
-Status: **fetching, skill extraction, a weekly new-postings radar, and an MCP server work.**
+The role is configurable (`roles.toml`), but the skill list was built and checked on PM
+postings. See [Track a different role](#track-a-different-role).
 
 ## Setup
 
@@ -50,9 +51,26 @@ Outputs (not committed, see `.gitignore`):
 - `data/raw/<date>/<job board>/<company>.json`: the full board response, kept only for boards
   with a PM-intern match (keeping all of them would be ~1 GB)
 
-A title counts as a PM internship when it contains "product manager" or "product management"
-**and** the whole word "intern", "internship" or "MBA". See `jd_analyzer/filters.py` and
-the cases in `tests/test_filters.py`, e.g. why "International" must not match.
+Which titles count is set in `roles.toml`. The default keeps titles containing "product
+manager" or "product management" **and** the whole word "intern", "internship" or "MBA".
+See `tests/test_filters.py` for the edge cases, e.g. why "International" must not match.
+
+### Track a different role
+
+Edit the `[filter]` table in `roles.toml` (or pass `--roles other.toml` to `fetch`):
+
+```toml
+[filter]
+name = "Product marketing"
+title = '\bproduct\s+marketing\b'   # must match
+level = '\b(intern|internship)\b'    # must also match (optional)
+exclude = '\bsenior\b'               # must not match (optional)
+```
+
+A bad pattern, a typo'd key, or a missing `title` stops the run with an error. Two caveats:
+discovery reads an *internship* list, so full-time roles need a different company source;
+and the skill list (`jd_analyzer/skills.py`) was audited on PM postings only, so check
+`data/skill_evidence.csv` before trusting counts for other roles.
 
 **Coverage caveat.** On 2026-10-21, of the open PM-intern listings on Simplify, only ~9% were
 on Greenhouse/Lever/Ashby; most were on Workday or company career sites, which this tool
@@ -130,7 +148,7 @@ posting's link.
 **Claude Code:**
 
 ```bash
-claude mcp add --scope user pm-intern-radar --env PYTHONPATH=/path/to/jd-analyzer -- /path/to/jd-analyzer/.venv/bin/python -m jd_analyzer.mcp_server
+claude mcp add --scope user pm-intern-radar --env PYTHONPATH=/path/to/pm-intern-radar -- /path/to/pm-intern-radar/.venv/bin/python -m jd_analyzer.mcp_server
 ```
 
 `PYTHONPATH` is required: Claude starts the server from whatever folder your session is in,
@@ -144,9 +162,9 @@ Check it with `claude mcp get pm-intern-radar`.
 {
   "mcpServers": {
     "pm-intern-radar": {
-      "command": "/path/to/jd-analyzer/.venv/bin/python",
+      "command": "/path/to/pm-intern-radar/.venv/bin/python",
       "args": ["-m", "jd_analyzer.mcp_server"],
-      "env": {"PYTHONPATH": "/path/to/jd-analyzer"}
+      "env": {"PYTHONPATH": "/path/to/pm-intern-radar"}
     }
   }
 }
@@ -169,6 +187,11 @@ posting's required vs preferred lines.
 Each job board is one module in `jd_analyzer/sources/` that returns `Posting` records
 (`jd_analyzer/models.py`). Shared token checks and retry-on-rate-limit live in
 `sources/base.py`, so adding another job board means one small file.
+
+## License
+
+MIT. See `LICENSE`. Job posting text is never stored in this repo; it stays in your local,
+git-ignored `data/` folder.
 
 ## Tests
 
@@ -199,6 +222,7 @@ jd_analyzer/
     lever.py
     ashby.py
 boards.txt               hand-picked boards, always included
+roles.toml               which job titles to track (default: PM internships)
 scripts/                 run_radar.sh, install_schedule.sh, uninstall_schedule.sh
 tests/
 ```
